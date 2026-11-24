@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Documento</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            background: #282828;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #f1f1f1;
+            text-align: center;
+        }
+
+        body {
+            padding: 16px;
+        }
+
+        .boton {
+
+            /* Alinea todo a la derecha */
+            text-align: right;
+            display: inline-block;
+            width: auto;
+            max-width: max-content;
+            padding: 5px 10px;
+            background: #90E303;
+            color: #1e1e1e;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .boton:hover {
+            background: #90E303;
+            opacity: 0.2;
+        }
+
+        /* Escritorio: PDF dibujado, sin visor */
+        #escritorio .boton {
+            margin-bottom: 16px;
+        }
+
+        #paginas {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+            margin-bottom: 16px;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
+        }
+
+        #estado {
+            color: #555;
+        }
+
+        /* Móvil: solo el aviso, centrado en la pantalla */
+        #movil {
+            display: none;
+            min-height: calc(100vh - 32px);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        #movil p {
+            line-height: 1.5;
+            margin: 0 0 14px;
+        }
+
+        @media (max-width: 768px) {
+            #escritorio {
+                display: none;
+            }
+
+            #movil {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+
+    <!-- ESCRITORIO -->
+    <div id="escritorio">
+        <a class="boton descarga" href="gouffray.pdf" download="gouffray.pdf">Descargar PDF</a>
+        <div id="estado">Cargando documento...</div>
+        <div id="paginas"></div>
+    </div>
+
+    <!-- MÓVIL -->
+    <div id="movil">
+        <p>El documento es tamaño carta. Para leerlo sin malabares le recomiendo abrirloen tableta o un computador.</p>
+        <p>Si lo prefieres, puedes descargarlo con un clic aquí:</p>
+        <p><a class="boton descarga" href="gouffray.pdf" download="gouffray.pdf">Descargar PDF</a></p>
+        <p> <a href="movil.html"> No te importa hacer un poquito de zoom? Entonces, haz clic aquí. </a></p>
+    </div>
+
+    <script>
+        var esMovil = window.matchMedia("(max-width: 768px)").matches;
+
+        // Descarga: intenta forzar la descarga para que no se abra el visor
+        document.querySelectorAll(".descarga").forEach(function (el) {
+            el.addEventListener("click", async function (e) {
+                e.preventDefault();
+                try {
+                    var r = await fetch("gouffray.pdf");
+                    var b = await r.blob();
+                    var u = URL.createObjectURL(b);
+                    var a = document.createElement("a");
+                    a.href = u; a.download = "gouffray.pdf";
+                    document.body.appendChild(a); a.click(); a.remove();
+                    setTimeout(function () { URL.revokeObjectURL(u); }, 1000);
+                } catch (err) {
+                    window.location.href = "gouffray.pdf";
+                }
+            });
+        });
+
+        // Solo en escritorio se carga PDF.js y se dibuja el PDF
+        if (!esMovil) {
+            var s = document.createElement("script");
+            s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+            s.onload = function () {
+                var cont = document.getElementById("paginas");
+                var estado = document.getElementById("estado");
+                pdfjsLib.GlobalWorkerOptions.workerSrc =
+                    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+                pdfjsLib.getDocument("gouffray.pdf").promise.then(async function (pdf) {
+                    estado.remove();
+                    for (var n = 1; n <= pdf.numPages; n++) {
+                        var page = await pdf.getPage(n);
+                        var base = page.getViewport({ scale: 1 });
+                        var escala = (cont.clientWidth / base.width) * Math.min(window.devicePixelRatio || 1, 2);
+                        var vp = page.getViewport({ scale: escala });
+                        var canvas = document.createElement("canvas");
+                        canvas.width = vp.width;
+                        canvas.height = vp.height;
+                        cont.appendChild(canvas);
+                        await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+                    }
+                }).catch(function () {
+                    estado.textContent = "No se pudo cargar el PDF. Revisa que gouffray.pdf esté en la misma carpeta.";
+                });
+            };
+            document.head.appendChild(s);
+        }
+    </script>
+
+</body>
+
+</html>
